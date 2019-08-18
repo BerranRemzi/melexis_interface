@@ -8,10 +8,11 @@
 
 */
 
-#ifndef MELEXIS_h
-#define MELEXIS_h
+#ifndef MELEXIS_H
+#define MELEXIS_H
 
-#include <inttypes.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 
 class MELEXIS
@@ -38,9 +39,9 @@ class MELEXIS
 		MELEXIS(uint8_t selectPin);
 	
 	private:
-		bool do_checksum(uint8_t* message);
+		uint8_t ComputeCRC(uint8_t* message);
 
 };
 
-#endif
+#endif /*  MELEXIS_H  */
 

@@ -108,7 +108,7 @@
 
 
  
-const char cba_256_TAB [] = {0x00, 0x2f, 0x5e, 0x71, 0xbc, 0x93, 0xe2, 0xcd,
+const uint8_t cba_256_TAB [] = {0x00, 0x2f, 0x5e, 0x71, 0xbc, 0x93, 0xe2, 0xcd,
 							0x57, 0x78, 0x09, 0x26, 0xeb, 0xc4, 0xb5, 0x9a,
 							0xae, 0x81, 0xf0, 0xdf, 0x12, 0x3d, 0x4c, 0x63,
 							0xf9, 0xd6, 0xa7, 0x88, 0x45, 0x6a, 0x1b, 0x34,
@@ -146,9 +146,7 @@ const uint16_t EE_Keys [][8] =	{{17485, 31053, 57190, 57724, 7899, 53543, 26763,
 								{55636, 64477, 40905, 45498, 24411, 36677, 4213, 48843},
 								{6368, 5907, 31384, 63325, 3562, 19816, 6995, 3147}};
 
-uint8_t slaveSelectPin;
-uint8_t i,j,k;
-uint8_t crc;
+int8_t slaveSelectPin = -1;
 
 uint8_t outbuffer[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 uint8_t inbuffer[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -159,9 +157,9 @@ int16_t axis_Value;
 /******************************************************************************
  * Constructors
  ******************************************************************************/
-MELEXIS::MELEXIS(uint8_t selectPin)
+MELEXIS::MELEXIS(int8_t _selectPin)
 {	
-	slaveSelectPin = selectPin;
+	slaveSelectPin = _selectPin;
 	pinMode (slaveSelectPin, OUTPUT);
 	digitalWrite(slaveSelectPin,HIGH); 
 	SPI.begin();
@@ -250,14 +248,16 @@ uint8_t MELEXIS::reboot()
 uint8_t MELEXIS::do_SPI()
 {
 	// This function appends the checksum, clocks out the outbuffer and clocks in the inbuffer
-	do_checksum(outbuffer);
+	outbuffer[7] = ComputeCRC(outbuffer);
 	digitalWrite(slaveSelectPin,LOW);
 	delayMicroseconds(1);
-	for (i=0; i<8; i++)
+	for (uint8_t i=0; i<8; i++){
 		inbuffer[i] = SPI.transfer(outbuffer[i]);
+	}
 	delayMicroseconds(1);
 	digitalWrite(slaveSelectPin,HIGH); 
-	return do_checksum(inbuffer);
+
+	return (uint8_t)(inbuffer[7] != ComputeCRC(inbuffer));
 }
 
 uint16_t MELEXIS::set_eeprom(uint16_t addr, uint8_t offset, uint8_t length, uint16_t data)
@@ -268,8 +268,9 @@ uint16_t MELEXIS::set_eeprom(uint16_t addr, uint8_t offset, uint8_t length, uint
 	EE_Value = get_eeprom_word(addr, offset, length); // Get the current value of that 16-bit word.
 	// 0: Modify relevant bit/s.
 	// Check that data can fit into length bits.
-	if (data&(0xFFFF<<length))
+	if (data&(0xFFFF<<length)){
 		return 9; // Error codes 1-8 are defined in the datasheet.
+	}
 	EE_Value &= ((0xFFFF<<(offset+length)|(0xFFFF>>(16-offset))));
 	EE_Value |= (data<<offset);
 	
@@ -291,8 +292,9 @@ uint16_t MELEXIS::set_eeprom(uint16_t addr, uint8_t offset, uint8_t length, uint
 	delayMicroseconds(2500);
 	
 	// 3,4: XOR response with 0x1234,  Respond to challenge with EEChallengeAns, read EEReadAnswer response
-	if ((inbuffer[6]&0x3F) != MELEXIS_EEPROMWriteChallenge)
+	if ((inbuffer[6]&0x3F) != MELEXIS_EEPROMWriteChallenge){
 		return 10; // For some reason the MLX didn't respond properly to our read request.
+	}
 	EE_Value = (inbuffer[2]|(inbuffer[3]<<8));
 	
 	memset(&outbuffer,0,sizeof(uint8_t)*8);
@@ -354,17 +356,17 @@ uint16_t MELEXIS::get_EE_Key(uint16_t addr)
 	return EE_Keys[(addr&0x30)>>4][(addr&0x0E)>>1];
 }
 
-bool MELEXIS::do_checksum(uint8_t* message)
+uint8_t MELEXIS::ComputeCRC(uint8_t* message)
 {
 	// Sets the last byte of the message to the CRC-8 of the first seven bytes.
 	// Also checks existing checksum, returns 0 if OK, 1 if fail.
-	crc = message[7];
-	message[7] = 0xFF; 
-	for (j=0; j<7; j++)
-		message[7] = cba_256_TAB[ message[j] ^ message[7] ];
-	message[7] = ~message[7]; 
+	uint8_t crc = 0xFF;
+
+	for (uint8_t i=0; i<7; i++){
+		crc = cba_256_TAB[ crc ^ message[i] ];
+	}
+	crc = ~crc; 
 	
-	return !(message[7]==crc);
-	
+	return crc;
 }
 
