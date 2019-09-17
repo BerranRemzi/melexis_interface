@@ -14,10 +14,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-
 class MELEXIS
 {
 	public:
+	
+		MELEXIS(int8_t _selectPin);
+		
 		int16_t get_x();
 		int16_t get_y();
 		int16_t get_z();
@@ -36,7 +38,7 @@ class MELEXIS
 		uint16_t get_eeprom_word(uint16_t addr, uint8_t offset, uint8_t length);
 		uint16_t get_EE_Key(uint16_t addr);
 
-		MELEXIS(uint8_t selectPin);
+		
 	
 	private:
 		uint8_t ComputeCRC(uint8_t* message);
